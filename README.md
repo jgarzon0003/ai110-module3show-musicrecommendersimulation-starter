@@ -22,10 +22,31 @@ Explain your design in plain language.
 Some prompts to answer:
 
 - What features does each `Song` use in your system
-  - For example: genre, mood, energy, tempo
+  - It will focus on energy and mood of the song
 - What information does your `UserProfile` store
+  It will store favGenre, favMood, targetEnergy
 - How does your `Recommender` compute a score for each song
+
+  **Algorithm Recipe (finalized):**
+
+  | Component | Points | Rule |
+  |---|---|---|
+  | Genre match | +2.0 | `song.genre == user.favorite_genre` |
+  | Mood match | +1.0 | `song.mood == user.favorite_mood` |
+  | Energy similarity | up to +1.5 | `1.5 * (1 - abs(song.energy - user.target_energy))` — full credit when energy exactly matches the target, scaling down the further apart they are |
+  | Acousticness bonus | +0.5 | only if `user.likes_acoustic` is True and `song.acousticness >= 0.6` |
+
+  Max possible score is 5.0. Genre is weighted twice as heavily as mood because it's the strongest explicit signal a user gives — switching genres tends to break a listening session more than switching moods. Energy uses a continuous similarity curve instead of an all-or-nothing bonus so a song that's close to the target energy still scores well even if it's not a perfect match. Acousticness is a small, optional tie-breaker that only applies to users who opted in.
+
 - How do you choose which songs to recommend
+  - Every song in the catalog is scored against the `UserProfile` using the recipe above, then sorted by score from highest to lowest
+  - The top `k` songs are returned as the recommendations (`k` defaults to 5)
+
+**Potential biases to watch for:**
+
+- Because genre carries the most points (2.0 vs 1.0 for mood), the system may over-prioritize genre matches and bury a song that's a near-perfect mood/energy fit but in a different genre.
+- Exact-match scoring for genre and mood means adjacent or related tastes (e.g. "indie pop" vs "pop", "chill" vs "relaxed") get zero credit even though a listener might enjoy both — the recipe can't recognize similarity between categories, only identity.
+- The acousticness bonus only rewards users who explicitly like acoustic songs; it doesn't penalize non-acoustic songs for users who dislike acoustic, so there's an asymmetry in how that preference is applied.
 
 You can include a simple diagram or bullet list if helpful.
 
@@ -41,18 +62,19 @@ You can include a simple diagram or bullet list if helpful.
    python -m venv .venv
    source .venv/bin/activate      # Mac or Linux
    .venv\Scripts\activate         # Windows
+   ```
 
-2. Install dependencies
+2. Install dependencies:
 
-```bash
-pip install -r requirements.txt
-```
+   ```bash
+   pip install -r requirements.txt
+   ```
 
 3. Run the app:
 
-```bash
-python -m src.main
-```
+   ```bash
+   python -m src.main
+   ```
 
 ### Running Tests
 
@@ -68,7 +90,42 @@ You can add more tests in `tests/test_recommender.py`.
 
 ## Sample Recommendation Output
 
-Paste a sample of your recommender's output here as a text block so a reader can see what it produces:
+```
+Loading songs from data/songs.csv...
+Loaded songs: 18
+
+Top Recommendations
+========================================
+
+1. Sunrise City by Neon Echo
+   Score: 4.47 / 5.00
+   Reasons:
+     - genre matches
+     - mood matches
+     - energy similarity (1.47 pts)
+
+2. Gym Hero by Max Pulse
+   Score: 3.30 / 5.00
+   Reasons:
+     - genre matches
+     - energy similarity (1.30 pts)
+
+3. Rooftop Lights by Indigo Parade
+   Score: 2.44 / 5.00
+   Reasons:
+     - mood matches
+     - energy similarity (1.44 pts)
+
+4. Night Drive Loop by Neon Echo
+   Score: 1.42 / 5.00
+   Reasons:
+     - energy similarity (1.42 pts)
+
+5. Concrete Dreams by MC Solstice
+   Score: 1.38 / 5.00
+   Reasons:
+     - energy similarity (1.38 pts)
+```
 
 ```
 # e.g.:
